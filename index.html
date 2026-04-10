@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Browser Agent — Автоматизация задач с ИИ | Анатолий Барсуков</title>
+  <meta name="description" content="AI-агент, который работает в браузере: кликает, заполняет формы, общается с ChatGPT/Gemini, генерирует контент. Экономия до 90% времени. От 3000₽." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@300;400;500;700&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ─── RESET & VARS ─── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0d0e12;
+      --bg2:      #13141a;
+      --bg3:      #1a1c24;
+      --border:   rgba(255,255,255,0.07);
+      --cyan:     #00e5c0;
+      --amber:    #ffb020;
+      --red:      #ff4757;
+      --text:     #dde0ea;
+      --muted:    #636678;
+      --card-bg:  rgba(255,255,255,0.03);
+      --glow-c:   rgba(0,229,192,0.15);
+      --ff-head:  'Bebas Neue', sans-serif;
+      --ff-mono:  'JetBrains Mono', monospace;
+      --ff-body:  'Manrope', sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--ff-body);
+      background: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+
+    /* ─── ANIMATED BACKGROUND ─── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background:
+        radial-gradient(ellipse 800px 600px at 10% 20%, rgba(0,229,192,0.05) 0%, transparent 70%),
+        radial-gradient(ellipse 600px 500px at 90% 80%, rgba(255,176,32,0.04) 0%, transparent 70%),
+        linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+      background-size: auto, auto, 48px 48px, 48px 48px;
+      pointer-events: none;
+    }
+
+    /* ─── UTILITY ─── */
+    .container { max-width: 1140px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+    .tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: var(--ff-mono); font-size: 11px; font-weight: 500;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--cyan); background: rgba(0,229,192,0.08);
+      border: 1px solid rgba(0,229,192,0.2); border-radius: 4px;
+      padding: 5px 12px;
+    }
+    .tag::before { content: '//'; opacity: 0.5; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 10px;
+      font-family: var(--ff-mono); font-size: 13px; font-weight: 500;
+      border-radius: 6px; padding: 14px 28px; cursor: pointer;
+      text-decoration: none; transition: all 0.2s ease; border: none;
+      position: relative; overflow: hidden;
+    }
+    .btn-primary {
+      background: var(--cyan); color: #0a0d0e;
+    }
+    .btn-primary::after {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent);
+      opacity: 0; transition: opacity 0.2s;
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,229,192,0.35); }
+    .btn-primary:hover::after { opacity: 1; }
+
+    .btn-outline {
+      background: transparent; color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-outline:hover { border-color: var(--cyan); color: var(--cyan); transform: translateY(-2px); }
+
+    /* ─── NAV ─── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+      padding: 18px 0;
+      background: rgba(13,14,18,0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      animation: slideDown 0.6s ease both;
+    }
+    @keyframes slideDown { from { opacity:0; transform:translateY(-100%); } to { opacity:1; transform:none; } }
+
+    .nav-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      max-width: 1140px; margin: 0 auto; padding: 0 24px;
+    }
+    .logo {
+      font-family: var(--ff-mono); font-size: 15px; font-weight: 700;
+      color: var(--text); text-decoration: none; display: flex; align-items: center; gap: 10px;
+    }
+    .logo-icon {
+      width: 32px; height: 32px; border-radius: 7px;
+      background: linear-gradient(135deg, var(--cyan), #00a88a);
+      display: grid; place-items: center;
+    }
+    .logo-icon svg { width: 16px; height: 16px; }
+    .logo span { color: var(--cyan); }
+
+    .nav-links { display: flex; align-items: center; gap: 32px; list-style: none; }
+    .nav-links a {
+      font-size: 13px; font-weight: 500; color: var(--muted);
+      text-decoration: none; transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+
+    .nav-cta {
+      font-family: var(--ff-mono); font-size: 12px; font-weight: 600;
+      color: var(--bg); background: var(--cyan);
+      padding: 9px 20px; border-radius: 5px; text-decoration: none;
+      transition: all 0.2s;
+    }
+    .nav-cta:hover { box-shadow: 0 4px 20px rgba(0,229,192,0.4); transform: translateY(-1px); }
+
+    /* ─── HERO ─── */
+    #hero {
+      min-height: 100vh;
+      display: flex; align-items: center;
+      padding: 140px 0 80px;
+    }
+    .hero-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center;
+    }
+
+    .hero-eyebrow { margin-bottom: 20px; animation: fadeUp 0.8s 0.2s ease both; }
+    .hero-title {
+      font-family: var(--ff-head);
+      font-size: clamp(52px, 6vw, 86px);
+      line-height: 0.95; letter-spacing: 0.02em;
+      color: #fff;
+      animation: fadeUp 0.8s 0.35s ease both;
+    }
+    .hero-title .accent { color: var(--cyan); }
+    .hero-title .accent-amber { color: var(--amber); }
+
+    .hero-sub {
+      margin-top: 24px; font-size: 17px; line-height: 1.7;
+      color: var(--muted); max-width: 480px;
+      animation: fadeUp 0.8s 0.5s ease both;
+    }
+    .hero-actions {
+      margin-top: 36px; display: flex; gap: 14px; flex-wrap: wrap;
+      animation: fadeUp 0.8s 0.65s ease both;
+    }
+    .hero-stat-row {
+      margin-top: 48px; display: flex; gap: 36px;
+      animation: fadeUp 0.8s 0.8s ease both;
+    }
+    .hero-stat { }
+    .hero-stat-num {
+      font-family: var(--ff-head); font-size: 42px; color: var(--cyan); line-height: 1;
+    }
+    .hero-stat-label { font-size: 12px; color: var(--muted); margin-top: 4px; font-weight: 500; }
+
+    @keyframes fadeUp { from { opacity:0; transform:translateY(28px); } to { opacity:1; transform:none; } }
+
+    /* Terminal window */
+    .terminal {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,229,192,0.1);
+      animation: fadeUp 0.8s 0.4s ease both;
+    }
+    .terminal-bar {
+      background: var(--bg3); padding: 12px 16px;
+      display: flex; align-items: center; gap: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .t-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .t-dot-r { background: #ff5f56; }
+    .t-dot-y { background: #febc2e; }
+    .t-dot-g { background: #27c93f; }
+    .t-title {
+      margin-left: 8px; font-family: var(--ff-mono); font-size: 11px;
+      color: var(--muted); flex: 1; text-align: center;
+    }
+    .terminal-body { padding: 20px; font-family: var(--ff-mono); font-size: 12.5px; line-height: 2; }
+    .t-line { display: flex; gap: 8px; opacity: 0; }
+    .t-line.show { animation: termLine 0.4s ease forwards; }
+    @keyframes termLine { from { opacity:0; transform:translateX(-6px); } to { opacity:1; transform:none; } }
+    .t-prompt { color: var(--cyan); }
+    .t-cmd { color: #c9d1d9; }
+    .t-out { color: var(--muted); padding-left: 18px; }
+    .t-success { color: #27c93f; }
+    .t-info { color: var(--amber); }
+    .t-cursor {
+      display: inline-block; width: 8px; height: 14px;
+      background: var(--cyan); vertical-align: middle;
+      animation: blink 1s step-end infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    .terminal-badge {
+      margin: 0 20px 20px;
+      background: rgba(0,229,192,0.06);
+      border: 1px solid rgba(0,229,192,0.15);
+      border-radius: 8px; padding: 12px 16px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .tb-dot { width: 8px; height: 8px; background: var(--cyan); border-radius: 50%; box-shadow: 0 0 8px var(--cyan); animation: pulse 2s infinite; }
+    @keyframes pulse { 50% { transform: scale(1.5); opacity: 0.5; } }
+    .tb-text { font-family: var(--ff-mono); font-size: 11px; color: var(--cyan); }
+
+    /* ─── SECTION SHARED ─── */
+    section { padding: 100px 0; }
+    .section-header { text-align: center; margin-bottom: 64px; }
+    .section-title {
+      font-family: var(--ff-head); font-size: clamp(40px, 4.5vw, 60px);
+      color: #fff; letter-spacing: 0.02em; margin-top: 14px; line-height: 1;
+    }
+    .section-sub { margin-top: 16px; font-size: 16px; color: var(--muted); max-width: 560px; margin-left: auto; margin-right: auto; }
+
+    /* ─── FEATURES ─── */
+    #features { background: var(--bg2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+
+    .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
+    .feat-card {
+      background: var(--card-bg); padding: 36px 30px;
+      border: 1px solid var(--border);
+      transition: background 0.25s, border-color 0.25s, transform 0.25s;
+      position: relative; overflow: hidden;
+    }
+    .feat-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+      opacity: 0; transition: opacity 0.3s;
+    }
+    .feat-card:hover { background: rgba(0,229,192,0.04); border-color: rgba(0,229,192,0.2); transform: translateY(-4px); }
+    .feat-card:hover::before { opacity: 1; }
+
+    .feat-icon {
+      width: 48px; height: 48px; border-radius: 10px;
+      background: rgba(0,229,192,0.08); border: 1px solid rgba(0,229,192,0.15);
+      display: grid; place-items: center; margin-bottom: 20px;
+    }
+    .feat-icon svg { width: 22px; height: 22px; stroke: var(--cyan); fill: none; stroke-width: 1.8; }
+    .feat-title { font-weight: 700; font-size: 16px; margin-bottom: 10px; color: #fff; }
+    .feat-text { font-size: 14px; color: var(--muted); line-height: 1.7; }
+
+    /* ─── HOW IT WORKS ─── */
+    #how {  }
+
+    .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; position: relative; }
+    .steps::before {
+      content: ''; position: absolute; top: 36px; left: 12.5%; right: 12.5%; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border), var(--cyan), var(--border), transparent);
+    }
+
+    .step { padding: 0 16px; text-align: center; }
+    .step-num {
+      width: 72px; height: 72px; border-radius: 50%;
+      background: var(--bg2); border: 1px solid var(--border);
+      font-family: var(--ff-head); font-size: 28px; color: var(--cyan);
+      display: grid; place-items: center; margin: 0 auto 24px;
+      transition: all 0.25s; position: relative; z-index: 1;
+    }
+    .step:hover .step-num {
+      background: rgba(0,229,192,0.1); border-color: var(--cyan);
+      box-shadow: 0 0 24px rgba(0,229,192,0.25);
+    }
+    .step-title { font-weight: 700; font-size: 15px; color: #fff; margin-bottom: 10px; }
+    .step-text { font-size: 13px; color: var(--muted); line-height: 1.7; }
+
+    /* ─── USE CASES ─── */
+    #usecases { background: var(--bg2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+
+    .cases-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .case-card {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 10px; padding: 28px 24px;
+      transition: all 0.25s; position: relative; overflow: hidden;
+    }
+    .case-card::after {
+      content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+      opacity: 0; transition: opacity 0.3s;
+    }
+    .case-card:nth-child(1)::after { background: var(--cyan); }
+    .case-card:nth-child(2)::after { background: var(--amber); }
+    .case-card:nth-child(3)::after { background: #a78bfa; }
+    .case-card:nth-child(4)::after { background: var(--red); }
+    .case-card:nth-child(5)::after { background: #34d399; }
+    .case-card:nth-child(6)::after { background: #fb923c; }
+    .case-card:hover { transform: translateY(-4px); border-color: rgba(255,255,255,0.12); }
+    .case-card:hover::after { opacity: 1; }
+
+    .case-num {
+      font-family: var(--ff-mono); font-size: 11px; color: var(--muted);
+      margin-bottom: 14px; letter-spacing: 0.1em;
+    }
+    .case-title { font-weight: 700; font-size: 16px; color: #fff; margin-bottom: 10px; }
+    .case-text { font-size: 13.5px; color: var(--muted); line-height: 1.65; }
+    .case-list { list-style: none; margin-top: 12px; }
+    .case-list li { font-size: 12.5px; color: var(--muted); padding: 3px 0; display: flex; gap: 8px; align-items: flex-start; }
+    .case-list li::before { content: '›'; color: var(--cyan); flex-shrink: 0; margin-top: 1px; }
+
+    /* ─── PRICING ─── */
+    #pricing { }
+
+    .pricing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 800px; margin: 0 auto; }
+    .plan {
+      border: 1px solid var(--border); border-radius: 14px;
+      padding: 40px 36px; background: var(--bg2); position: relative; overflow: hidden;
+      transition: transform 0.25s;
+    }
+    .plan:hover { transform: translateY(-6px); }
+    .plan-recommended {
+      border-color: var(--cyan);
+      background: linear-gradient(160deg, rgba(0,229,192,0.06) 0%, var(--bg2) 60%);
+    }
+    .plan-recommended::before {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(ellipse at top right, rgba(0,229,192,0.08), transparent 70%);
+      pointer-events: none;
+    }
+    .plan-badge {
+      position: absolute; top: 20px; right: 20px;
+      font-family: var(--ff-mono); font-size: 10px; font-weight: 600;
+      color: var(--bg); background: var(--cyan);
+      padding: 4px 10px; border-radius: 4px; letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    .plan-name { font-family: var(--ff-mono); font-size: 13px; color: var(--muted); margin-bottom: 8px; letter-spacing: 0.1em; }
+    .plan-title { font-family: var(--ff-head); font-size: 30px; color: #fff; letter-spacing: 0.02em; margin-bottom: 8px; }
+    .plan-price {
+      font-family: var(--ff-head); font-size: 52px; color: var(--cyan);
+      letter-spacing: 0.01em; line-height: 1;
+    }
+    .plan-price span { font-family: var(--ff-body); font-size: 15px; color: var(--muted); font-weight: 400; }
+    .plan-desc { font-size: 13.5px; color: var(--muted); margin: 16px 0 24px; line-height: 1.6; }
+    .plan-reqs {
+      font-family: var(--ff-mono); font-size: 11.5px; color: var(--amber);
+      background: rgba(255,176,32,0.08); border: 1px solid rgba(255,176,32,0.2);
+      border-radius: 6px; padding: 10px 14px; margin-bottom: 24px; line-height: 1.6;
+    }
+    .plan-features { list-style: none; }
+    .plan-features li {
+      display: flex; gap: 10px; align-items: flex-start;
+      font-size: 14px; color: var(--text); padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .plan-features li:last-child { border-bottom: none; }
+    .plan-features li::before { content: '✓'; color: var(--cyan); flex-shrink: 0; font-weight: 700; }
+    .plan-cta { margin-top: 32px; width: 100%; justify-content: center; }
+
+    /* ─── BENEFITS STRIP ─── */
+    #benefits {
+      border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      padding: 60px 0;
+      background: linear-gradient(135deg, rgba(0,229,192,0.03) 0%, rgba(255,176,32,0.02) 100%);
+    }
+    .benefits-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 36px; }
+    .benefit { display: flex; gap: 20px; align-items: flex-start; }
+    .benefit-icon {
+      width: 52px; height: 52px; flex-shrink: 0; border-radius: 12px;
+      display: grid; place-items: center; font-size: 22px;
+    }
+    .benefit-icon-1 { background: rgba(0,229,192,0.1); }
+    .benefit-icon-2 { background: rgba(255,176,32,0.1); }
+    .benefit-icon-3 { background: rgba(167,139,250,0.1); }
+    .benefit-num { font-family: var(--ff-head); font-size: 38px; color: var(--cyan); line-height: 1; }
+    .benefit-title { font-weight: 700; font-size: 15px; color: #fff; margin: 4px 0; }
+    .benefit-text { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+    /* ─── CONTACT / CTA ─── */
+    #contact {
+      padding: 120px 0;
+      text-align: center;
+      background: radial-gradient(ellipse 900px 500px at 50% 50%, rgba(0,229,192,0.05) 0%, transparent 70%);
+    }
+    .contact-box {
+      max-width: 680px; margin: 0 auto;
+      background: var(--bg2); border: 1px solid rgba(0,229,192,0.2);
+      border-radius: 20px; padding: 60px 48px;
+      box-shadow: 0 0 80px rgba(0,229,192,0.06);
+    }
+    .contact-title { font-family: var(--ff-head); font-size: clamp(38px, 4vw, 56px); color: #fff; margin: 14px 0; line-height: 1; }
+    .contact-sub { font-size: 16px; color: var(--muted); margin-bottom: 36px; }
+    .contact-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-bottom: 40px; }
+
+    .contact-links { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; }
+    .contact-link {
+      display: flex; align-items: center; gap: 8px;
+      font-family: var(--ff-mono); font-size: 12.5px; color: var(--muted);
+      text-decoration: none; transition: color 0.2s;
+    }
+    .contact-link:hover { color: var(--cyan); }
+    .contact-link svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+
+    .author-row {
+      margin-top: 32px; padding-top: 28px;
+      border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center; gap: 14px;
+    }
+    .author-avatar {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--cyan), var(--accent2, #7b5cff));
+      display: grid; place-items: center;
+      font-family: var(--ff-head); font-size: 18px; color: var(--bg);
+    }
+    .author-name { font-weight: 700; font-size: 15px; color: var(--text); }
+    .author-role { font-size: 12px; color: var(--muted); }
+
+    /* ─── FOOTER ─── */
+    footer {
+      border-top: 1px solid var(--border); padding: 28px 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    footer p { font-family: var(--ff-mono); font-size: 11px; color: var(--muted); }
+    footer a { color: var(--cyan); text-decoration: none; }
+
+    /* ─── SCROLL REVEAL ─── */
+    .reveal { opacity: 0; transform: translateY(30px); transition: opacity 0.7s ease, transform 0.7s ease; }
+    .reveal.visible { opacity: 1; transform: none; }
+    .reveal-delay-1 { transition-delay: 0.1s; }
+    .reveal-delay-2 { transition-delay: 0.2s; }
+    .reveal-delay-3 { transition-delay: 0.3s; }
+    .reveal-delay-4 { transition-delay: 0.4s; }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 900px) {
+      .hero-grid { grid-template-columns: 1fr; gap: 48px; }
+      .features-grid { grid-template-columns: 1fr 1fr; }
+      .steps { grid-template-columns: 1fr 1fr; gap: 32px; }
+      .steps::before { display: none; }
+      .cases-grid { grid-template-columns: 1fr 1fr; }
+      .pricing-grid { grid-template-columns: 1fr; max-width: 440px; }
+      .benefits-grid { grid-template-columns: 1fr; gap: 24px; }
+      nav .nav-links { display: none; }
+    }
+    @media (max-width: 600px) {
+      .features-grid { grid-template-columns: 1fr; }
+      .cases-grid { grid-template-columns: 1fr; }
+      .contact-box { padding: 36px 24px; }
+      .hero-stat-row { gap: 24px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <div class="nav-inner">
+      <a href="#" class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+            <path d="M5.64 5.64l2.12 2.12M16.24 16.24l2.12 2.12M5.64 18.36l2.12-2.12M16.24 7.76l2.12-2.12"/>
+          </svg>
+        </div>
+        AI Browser<span>Agent</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#features">Возможности</a></li>
+        <li><a href="#how">Как работает</a></li>
+        <li><a href="#usecases">Применение</a></li>
+        <li><a href="#pricing">Цены</a></li>
+      </ul>
+      <a href="#contact" class="nav-cta">Связаться →</a>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section id="hero">
+    <div class="container">
+      <div class="hero-grid">
+        <div>
+          <div class="hero-eyebrow">
+            <span class="tag">Автоматизация нового поколения</span>
+          </div>
+          <h1 class="hero-title">
+            AI-АГЕНТ<br>
+            <span class="accent">РАБОТАЕТ</span><br>
+            ЗА ТЕБЯ
+          </h1>
+          <p class="hero-sub">
+            Браузерный агент с интеграцией ChatGPT и Gemini — кликает, заполняет формы, генерирует контент и выполняет цепочки задач 24/7 без участия человека.
+          </p>
+          <div class="hero-actions">
+            <a href="#contact" class="btn btn-primary">
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81 19.79 19.79 0 01.01 1.18 2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg>
+              Заказать агента
+            </a>
+            <a href="#how" class="btn btn-outline">Как это работает</a>
+          </div>
+          <div class="hero-stat-row">
+            <div class="hero-stat">
+              <div class="hero-stat-num">90%</div>
+              <div class="hero-stat-label">экономия времени</div>
+            </div>
+            <div class="hero-stat">
+              <div class="hero-stat-num">24/7</div>
+              <div class="hero-stat-label">без остановок</div>
+            </div>
+            <div class="hero-stat">
+              <div class="hero-stat-num">3000₽</div>
+              <div class="hero-stat-label">от / установка</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Terminal -->
+        <div class="terminal" id="terminal">
+          <div class="terminal-bar">
+            <div class="t-dot t-dot-r"></div>
+            <div class="t-dot t-dot-y"></div>
+            <div class="t-dot t-dot-g"></div>
+            <div class="t-title">ai-browser-agent — задание выполняется</div>
+          </div>
+          <div class="terminal-body" id="termBody">
+            <div class="t-line" id="l0"><span class="t-prompt">❯</span><span class="t-cmd">agent.start("content_generation")</span></div>
+            <div class="t-line" id="l1"><span class="t-out t-info">⬡ Запуск браузерного агента...</span></div>
+            <div class="t-line" id="l2"><span class="t-out">→ Открываю ChatGPT...</span></div>
+            <div class="t-line" id="l3"><span class="t-out">→ Отправляю промпт для 50 товаров...</span></div>
+            <div class="t-line" id="l4"><span class="t-out t-success">✓ Получено 50 описаний [4.2s]</span></div>
+            <div class="t-line" id="l5"><span class="t-out">→ Загружаю в интернет-магазин...</span></div>
+            <div class="t-line" id="l6"><span class="t-out">→ Генерирую изображения в DALL-E...</span></div>
+            <div class="t-line" id="l7"><span class="t-out t-success">✓ 50 изображений скачаны</span></div>
+            <div class="t-line" id="l8"><span class="t-out">→ Публикую карточки товаров...</span></div>
+            <div class="t-line" id="l9"><span class="t-out t-success">✓ Выполнено! Обработано 50 товаров</span></div>
+            <div class="t-line" id="l10"><span class="t-prompt">❯</span><span class="t-cursor"></span></div>
+          </div>
+          <div class="terminal-badge">
+            <div class="tb-dot"></div>
+            <div class="tb-text">Агент активен — задачи выполняются автоматически</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section id="features">
+    <div class="container">
+      <div class="section-header">
+        <span class="tag">Возможности</span>
+        <h2 class="section-title">ЧТО УМЕЕТ АГЕНТ</h2>
+        <p class="section-sub">Полноценный автопилот для браузерных задач любой сложности</p>
+      </div>
+      <div class="features-grid">
+        <div class="feat-card reveal">
+          <div class="feat-icon">
+            <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+          </div>
+          <div class="feat-title">Управление браузером</div>
+          <div class="feat-text">Кликает, заполняет формы, скролит страницы, навигирует между сайтами — как настоящий пользователь.</div>
+        </div>
+        <div class="feat-card reveal reveal-delay-1">
+          <div class="feat-icon">
+            <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          </div>
+          <div class="feat-title">Интеграция с AI</div>
+          <div class="feat-text">Напрямую общается с ChatGPT, Gemini и другими AI-моделями для генерации текстов, анализа данных и принятия решений.</div>
+        </div>
+        <div class="feat-card reveal reveal-delay-2">
+          <div class="feat-icon">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <div class="feat-title">Работа с файлами</div>
+          <div class="feat-text">Скачивает, читает и обрабатывает файлы: PDF, Excel, CSV, изображения. Экспортирует результаты в нужном формате.</div>
+        </div>
+        <div class="feat-card reveal">
+          <div class="feat-icon">
+            <svg viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 012 2v7"/><line x1="6" y1="9" x2="6" y2="21"/></svg>
+          </div>
+          <div class="feat-title">Цепочки действий</div>
+          <div class="feat-text">Выстраивает сложные сценарии из множества шагов: собрать данные → обработать AI → загрузить результат → отчитаться.</div>
+        </div>
+        <div class="feat-card reveal reveal-delay-1">
+          <div class="feat-icon">
+            <svg viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+          </div>
+          <div class="feat-title">Генерация контента</div>
+          <div class="feat-text">Создаёт тексты, описания, посты, рекламные материалы и изображения через DALL-E, Midjourney и другие инструменты.</div>
+        </div>
+        <div class="feat-card reveal reveal-delay-2">
+          <div class="feat-icon">
+            <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </div>
+          <div class="feat-title">Мониторинг и отчёты</div>
+          <div class="feat-text">Логирует все действия, уведомляет об ошибках и отправляет отчёты о выполнении задач в мессенджер или email.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section id="how">
+    <div class="container">
+      <div class="section-header">
+        <span class="tag">Процесс</span>
+        <h2 class="section-title">КАК ЭТО РАБОТАЕТ</h2>
+        <p class="section-sub">От заказа до работающего агента — быстро и понятно</p>
+      </div>
+      <div class="steps">
+        <div class="step reveal">
+          <div class="step-num">01</div>
+          <div class="step-title">Обсуждение задачи</div>
+          <div class="step-text">Рассказываете, что нужно автоматизировать. Описываем шаги, которые сейчас делаете вручную.</div>
+        </div>
+        <div class="step reveal reveal-delay-1">
+          <div class="step-num">02</div>
+          <div class="step-title">Разработка агента</div>
+          <div class="step-text">Настраиваю браузерный агент под вашу задачу: маршрут действий, промпты, обработку данных.</div>
+        </div>
+        <div class="step reveal reveal-delay-2">
+          <div class="step-num">03</div>
+          <div class="step-title">Тестирование</div>
+          <div class="step-text">Прогоняем агента на реальных данных, дорабатываем сценарии, устраняем ошибки.</div>
+        </div>
+        <div class="step reveal reveal-delay-3">
+          <div class="step-num">04</div>
+          <div class="step-title">Запуск и поддержка</div>
+          <div class="step-text">Агент установлен на вашей машине или сервере. Инструкция и поддержка включены.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- USE CASES -->
+  <section id="usecases">
+    <div class="container">
+      <div class="section-header">
+        <span class="tag">Применение</span>
+        <h2 class="section-title">ДЛЯ КАКИХ ЗАДАЧ</h2>
+        <p class="section-sub">Маркетологи, e-commerce, стартапы и фрилансеры уже экономят часы в день</p>
+      </div>
+      <div class="cases-grid">
+        <div class="case-card reveal">
+          <div class="case-num">01 / КОНТЕНТ</div>
+          <div class="case-title">Генерация контента</div>
+          <div class="case-text">Массовое создание текстов, постов и описаний через ChatGPT.</div>
+          <ul class="case-list">
+            <li>Описания товаров для каталога</li>
+            <li>Посты для соцсетей</li>
+            <li>SEO-тексты и статьи</li>
+          </ul>
+        </div>
+        <div class="case-card reveal reveal-delay-1">
+          <div class="case-num">02 / DATA</div>
+          <div class="case-title">Сбор и обработка данных</div>
+          <div class="case-text">Парсинг, структурирование и анализ данных с любых сайтов.</div>
+          <ul class="case-list">
+            <li>Мониторинг цен конкурентов</li>
+            <li>Сбор лидов и контактов</li>
+            <li>Анализ отзывов и трендов</li>
+          </ul>
+        </div>
+        <div class="case-card reveal reveal-delay-2">
+          <div class="case-num">03 / E-COMMERCE</div>
+          <div class="case-title">Автоматизация e-commerce</div>
+          <div class="case-text">Управление магазином без ручного труда от A до Z.</div>
+          <ul class="case-list">
+            <li>Загрузка товаров и фото</li>
+            <li>Обновление остатков</li>
+            <li>Обработка заказов</li>
+          </ul>
+        </div>
+        <div class="case-card reveal">
+          <div class="case-num">04 / МАРКЕТИНГ</div>
+          <div class="case-title">Маркетинговые материалы</div>
+          <div class="case-text">Создание рекламы, баннеров и промо-контента с AI.</div>
+          <ul class="case-list">
+            <li>Генерация изображений DALL-E</li>
+            <li>Рекламные тексты</li>
+            <li>Email-рассылки</li>
+          </ul>
+        </div>
+        <div class="case-card reveal reveal-delay-1">
+          <div class="case-num">05 / FILES</div>
+          <div class="case-title">Работа с документами</div>
+          <div class="case-text">Обработка, конвертация и анализ файлов без участия человека.</div>
+          <ul class="case-list">
+            <li>Обработка PDF и Excel</li>
+            <li>Заполнение шаблонов</li>
+            <li>Конвертация форматов</li>
+          </ul>
+        </div>
+        <div class="case-card reveal reveal-delay-2">
+          <div class="case-num">06 / RPA + AI</div>
+          <div class="case-title">Повторяемые процессы</div>
+          <div class="case-text">Любые рутинные задачи, которые вы делаете по одному сценарию каждый день.</div>
+          <ul class="case-list">
+            <li>Ежедневные отчёты</li>
+            <li>Синхронизация данных</li>
+            <li>Автоответы и уведомления</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BENEFITS -->
+  <section id="benefits">
+    <div class="container">
+      <div class="benefits-grid">
+        <div class="benefit reveal">
+          <div class="benefit-icon benefit-icon-1">⚡</div>
+          <div>
+            <div class="benefit-num">90%</div>
+            <div class="benefit-title">Экономия времени</div>
+            <div class="benefit-text">То, что занимало 8 часов, агент выполняет за 40 минут. Освободите команду для творческих задач.</div>
+          </div>
+        </div>
+        <div class="benefit reveal reveal-delay-1">
+          <div class="benefit-icon benefit-icon-2">💰</div>
+          <div>
+            <div class="benefit-num" style="color:var(--amber)">×3</div>
+            <div class="benefit-title">Снижение затрат</div>
+            <div class="benefit-text">Один агент заменяет нескольких сотрудников на рутинных задачах. Масштабируетесь без найма.</div>
+          </div>
+        </div>
+        <div class="benefit reveal reveal-delay-2">
+          <div class="benefit-icon benefit-icon-3">🔄</div>
+          <div>
+            <div class="benefit-num" style="color:#a78bfa">24/7</div>
+            <div class="benefit-title">Без остановок</div>
+            <div class="benefit-text">Агент не устаёт и не делает ошибок от усталости. Работает круглосуточно, в любой часовой зоне.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <section id="pricing">
+    <div class="container">
+      <div class="section-header">
+        <span class="tag">Тарифы</span>
+        <h2 class="section-title">ДВА ВАРИАНТА</h2>
+        <p class="section-sub">Выберите подходящий формат — локальный или облачный</p>
+      </div>
+      <div class="pricing-grid">
+        <!-- Plan 1 -->
+        <div class="plan reveal">
+          <div class="plan-name">ВАРИАНТ 01</div>
+          <div class="plan-title">Без API</div>
+          <div class="plan-price">3 000₽ <span>/ установка</span></div>
+          <div class="plan-desc">Бесплатное использование AI через локальную модель. Не платите за API-запросы, но нужен мощный ПК.</div>
+          <div class="plan-reqs">⚠ Требуется: видеокарта RTX 3090 или мощнее. LM Studio устанавливается отдельно.</div>
+          <ul class="plan-features">
+            <li>Локальная LLM через LM Studio</li>
+            <li>Нет затрат на API</li>
+            <li>Полная конфиденциальность данных</li>
+            <li>Браузерная автоматизация</li>
+            <li>Инструкция по настройке</li>
+            <li>Поддержка при запуске</li>
+          </ul>
+          <a href="mailto:londi3131@gmail.com?subject=Заказ: AI Agent без API" class="btn btn-outline plan-cta">Заказать</a>
+        </div>
+        <!-- Plan 2 -->
+        <div class="plan plan-recommended reveal reveal-delay-1">
+          <div class="plan-badge">РЕКОМЕНДУЕМ</div>
+          <div class="plan-name">ВАРИАНТ 02</div>
+          <div class="plan-title">Через API</div>
+          <div class="plan-price">3 000₽ <span>/ установка</span></div>
+          <div class="plan-desc">Работает быстрее и стабильнее. Не требует мощного ПК. Оптимальное решение для бизнеса.</div>
+          <div class="plan-reqs" style="color:var(--cyan);background:rgba(0,229,192,0.06);border-color:rgba(0,229,192,0.2)">✓ Работает на любом ПК. Нужен ключ OpenAI/Gemini API (~$5–20/мес в зависимости от нагрузки).</div>
+          <ul class="plan-features">
+            <li>ChatGPT / Gemini / Claude API</li>
+            <li>Высокая скорость и стабильность</li>
+            <li>Любой компьютер или сервер</li>
+            <li>Полная браузерная автоматизация</li>
+            <li>Цепочки задач любой сложности</li>
+            <li>Инструкция + приоритетная поддержка</li>
+          </ul>
+          <a href="mailto:londi3131@gmail.com?subject=Заказ: AI Agent через API" class="btn btn-primary plan-cta">Заказать сейчас</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONTACT CTA -->
+  <section id="contact">
+    <div class="container">
+      <div class="contact-box reveal">
+        <span class="tag">Контакт</span>
+        <h2 class="contact-title">ГОТОВ АВТОМАТИЗИРОВАТЬ?</h2>
+        <p class="contact-sub">Напишите — обсудим задачу и подберём оптимальное решение. Отвечаю быстро.</p>
+        <div class="contact-actions">
+          <a href="mailto:londi3131@gmail.com?subject=Хочу AI-агента" class="btn btn-primary">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            Написать на Email
+          </a>
+          <a href="https://www.linkedin.com/in/anatoliy-barsukov-52194bb4/" target="_blank" rel="noopener" class="btn btn-outline">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+            LinkedIn
+          </a>
+        </div>
+        <div class="contact-links">
+          <a href="mailto:londi3131@gmail.com" class="contact-link">
+            <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            londi3131@gmail.com
+          </a>
+          <a href="https://www.linkedin.com/in/anatoliy-barsukov-52194bb4/" target="_blank" rel="noopener" class="contact-link">
+            <svg viewBox="0 0 24 24"><path d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+            Анатолий Барсуков
+          </a>
+        </div>
+        <div class="author-row">
+          <div class="author-avatar">А</div>
+          <div>
+            <div class="author-name">Анатолий Барсуков</div>
+            <div class="author-role">AI Automation Developer · Browser Agent Specialist</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="container">
+      <p>© 2025 AI Browser Agent · <a href="mailto:londi3131@gmail.com">londi3131@gmail.com</a> · Анатолий Барсуков</p>
+    </div>
+  </footer>
+
+  <script>
+    // Terminal animation
+    const lines = document.querySelectorAll('.t-line');
+    let i = 0;
+    function showNextLine() {
+      if (i < lines.length) {
+        lines[i].classList.add('show');
+        i++;
+        setTimeout(showNextLine, i < 3 ? 300 : 500);
+      }
+    }
+    setTimeout(showNextLine, 800);
+
+    // Scroll reveal
+    const reveals = document.querySelectorAll('.reveal');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); } });
+    }, { threshold: 0.12 });
+    reveals.forEach(el => observer.observe(el));
+
+    // Smooth nav highlight (optional enhancement)
+    document.querySelectorAll('a[href^="#"]').forEach(a => {
+      a.addEventListener('click', e => {
+        const target = document.querySelector(a.getAttribute('href'));
+        if (target) { e.preventDefault(); target.scrollIntoView({ behavior: 'smooth' }); }
+      });
+    });
+  </script>
+</body>
+</html>
